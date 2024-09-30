@@ -56,7 +56,7 @@ I'm a passionate Java Developer and an aspiring Software Engineer with a strong 
 ## 📫 How to reach me
 
 - **Email**: 2001.gupta.himanshu@gmail.com
-- **LinkedIn**: [Your LinkedIn Profile URL]
+- **LinkedIn**: https://www.linkedin.com/in/himanshu-gupta-233b302a5
 - **GitHub**: [HimanshuCoder001](https://github.com/HimanshuCoder001)
 
 ---
