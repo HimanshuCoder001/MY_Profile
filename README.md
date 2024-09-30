@@ -1,6 +1,7 @@
 # Hi there, I'm Himanshu Gupta! 👋
 **Java Developer | Software Trainer | Enthusiast of Clean Code**
 
+<h2>Welcome to my GitHub profile! </h2>
 I'm a passionate Java Developer and an aspiring Software Engineer with a strong foundation in backend development, Spring Boot, and database management.<br> I love coding, problem-solving, and constantly learning new technologies.
 
 ---
