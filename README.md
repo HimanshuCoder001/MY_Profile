@@ -23,7 +23,11 @@ I'm a passionate Java Developer and an aspiring Software Engineer with a strong 
 
 ### Frameworks & Tools:
 - Spring Boot
+- Spring
 - Hibernate
+- Collection
+- J2EE
+- Servlet & JSP
 - Maven
 - Git
 
@@ -51,6 +55,7 @@ I'm a passionate Java Developer and an aspiring Software Engineer with a strong 
 ### 2. **Audit Logging Service**
 - Implemented an audit logging service in a Spring Boot project for tracking entity changes efficiently.
 
+etc................................
 ---
 
 ## 📫 How to reach me
