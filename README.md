@@ -1,5 +1,4 @@
-# Hi there, I'm Himanshu Gupta! 👋
-**Java Developer | Software Trainer | Enthusiast of Clean Code**
+# Hi there, I'm Himanshu Gupta! 👋 **Java Developer | Software Trainer | Enthusiast of Clean Code**
 
 <h2>Welcome to my GitHub profile! </h2>
 I'm a passionate Java Developer and an aspiring Software Engineer with a strong foundation in backend development, Spring Boot, and database management.<br> I love coding, problem-solving, and constantly learning new technologies.
@@ -13,6 +12,7 @@ I'm a passionate Java Developer and an aspiring Software Engineer with a strong 
 - 💻 Building projects using **Spring Boot**, **PostgreSQL**, and **MySQL**
 - 📝 I write clean, maintainable, and industry-standard code
 - 🎓 Pursuing **MSc in Computer Science** from IGNOU
+- **Passionate Educator**:  I find joy in teaching students as a Math and Science tutor.
 
 ---
 
@@ -21,7 +21,9 @@ I'm a passionate Java Developer and an aspiring Software Engineer with a strong 
 ### Programming Languages:
 - Java(Core & Advanced)
 - SQL
+- Html-Css
 - JavaScript
+- React
 
 ### Frameworks & Tools:
 - Spring Boot
@@ -42,10 +44,11 @@ I'm a passionate Java Developer and an aspiring Software Engineer with a strong 
 - GitHub
 - REST APIs
 - Postman
+- Notepad++
 - VSCode
 - Eclipse
 - Spring Tool Suite (STS)
-
+- IntelliJ
 ---
 
 ## 🌟 Projects
