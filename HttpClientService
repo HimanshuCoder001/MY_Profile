@@ -1,0 +1,152 @@
+package com.credit.common.ams.service;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.resilience4j.retry.Retry;
+import io.github.resilience4j.retry.RetryConfig;
+import io.github.resilience4j.retry.RetryRegistry;
+import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.core.publisher.Mono;
+
+import java.net.URI;
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.Supplier;
+
+
+
+/**
+ * Middleware-like method similar to axiosService.handle(conf, payload, clientId, applicationNumber, requestId)
+ */
+
+@Service
+@RequiredArgsConstructor
+public class HttpClientService {
+    private final ResponseHandlerService responseHandlerService;
+    private final RetryRegistry retryRegistry;
+    private final Logger logger = LoggerFactory.getLogger(HttpClientService.class);
+
+    @Value("${http-client.timeout-ms:40000}")
+    private int defaultTimeoutMs;
+    @Value("${http-client.max-retries:0}")
+    private int defaultMaxRetries;
+    @Value("${http-client.min-timeout:100}")
+    private long minTimeout;
+    @Value("${http-client.retry-factor:2}")
+    private double retryFactor;
+
+    private static final String[] SENSITIVE_HEADERS = {"authorization", "x-api-key", "cookie", "set-cookie", "iv"};
+
+    public <T> Mono<T> handle(HttpMethod method, String url, HttpHeaders headers, Object payload,
+                              String clientId, String applicationNumber, String requestId,
+                              Map<String, Object> options, Class<T> responseType) {
+        long startTime = System.currentTimeMillis();
+        String finalRequestId = requestId != null ? requestId : UUID.randomUUID().toString();
+        boolean skipAmsLogging = (boolean) options.getOrDefault("skipAmsLogging", false);
+        int timeoutMs = (int) options.getOrDefault("timeout", defaultTimeoutMs);
+        int maxRetries = (int) options.getOrDefault("maxRetries", defaultMaxRetries);
+
+        // Build and mask headers
+        Map<String, String> headerMap = new HashMap<>();
+        if (headers != null) {
+            headers.forEach((k, v) -> headerMap.put(k, String.join(",", v)));
+        }
+        if (clientId != null) headerMap.put("clientId", clientId);
+        if (applicationNumber != null && !applicationNumber.trim().isEmpty()) headerMap.put("applicationNumber", applicationNumber);
+        headerMap.put("requestId", finalRequestId);
+        Map<String, String> maskedHeaders = maskHeaders(headerMap);
+
+        // Request metadata
+        Map<String, Object> reqMeta = new HashMap<>();
+        Map<String, Object> optionsMeta = new HashMap<>();
+        try {
+            URI uri = new URI(url);
+            optionsMeta.put("host", uri.getHost());
+            optionsMeta.put("port", uri.getPort() == -1 ? (uri.getScheme().equals("https") ? 443 : 80) : uri.getPort());
+            optionsMeta.put("url", uri.getPath() + (uri.getQuery() != null ? "?" + uri.getQuery() : ""));
+            optionsMeta.put("method", method.name());
+            optionsMeta.put("protocol", uri.getScheme());
+        } catch (Exception e) {
+            optionsMeta.put("rawUrl", url);
+            optionsMeta.put("method", method.name());
+        }
+        optionsMeta.put("headers", maskedHeaders);
+        optionsMeta.put("startTime", startTime);
+
+        reqMeta.put("dateTime", System.currentTimeMillis());
+        reqMeta.put("REQUEST", optionsMeta);
+        reqMeta.put("data", safeSerialize(payload));
+
+        // WebClient with timeout
+        WebClient webClient = WebClient.builder()
+                .baseUrl(url)
+                .defaultHeaders(h -> headerMap.forEach(h::add))
+                .build();
+
+        // Retry config
+        RetryConfig retryConfig = RetryConfig.custom()
+                .maxAttempts(maxRetries + 1)
+                .waitDuration(Duration.ofMillis(minTimeout))
+                .intervalFunction(attempt -> (long) (minTimeout * Math.pow(retryFactor, attempt - 1)))
+                .retryOnException(this::isRetryableError)
+                .build();
+        Retry retry = retryRegistry.retry("amsHttpRetry", retryConfig);
+
+        // Reactive retry with Supplier and flattening
+        Supplier<Mono<T>> retryableSupplier = () -> webClient.method(method)
+                .bodyValue(payload)
+                .retrieve()
+                .toEntity(responseType)
+                .flatMap(responseEntity -> {
+                    Map<String, String> responseHeaders = new HashMap<>();
+                    responseEntity.getHeaders().forEach((k, v) -> responseHeaders.put(k, String.join(",", v)));
+                    return responseHandlerService.processResponse(
+                            responseEntity.getBody(), reqMeta, responseHeaders, responseEntity.getStatusCode().value(),
+                            clientId, applicationNumber, finalRequestId, skipAmsLogging);
+                })
+                .onErrorResume(Throwable.class, e -> responseHandlerService.processError(
+                        e, reqMeta, clientId, applicationNumber, finalRequestId, skipAmsLogging));
+
+        return Mono.defer(() -> Mono.justOrEmpty(retry.executeSupplier(retryableSupplier))).flatMap(m -> m);
+    }
+
+    private boolean isRetryableError(Throwable throwable) {
+        if (throwable instanceof WebClientResponseException ex) {
+            int status = ex.getStatusCode().value();
+            return status >= 500 && status < 600;
+        }
+        String message = throwable.getMessage();
+        return message != null && (message.contains("timeout") || message.contains("ECONNREFUSED") || message.contains("ENOTFOUND") || message.contains("ETIMEDOUT"));
+    }
+
+    private Map<String, String> maskHeaders(Map<String, String> headers) {
+        Map<String, String> masked = new HashMap<>(headers);
+        for (String key : masked.keySet()) {
+            for (String sensitive : SENSITIVE_HEADERS) {
+                if (key.toLowerCase().equals(sensitive)) {
+                    masked.put(key, "***");
+                    break;
+                }
+            }
+        }
+        return masked;
+    }
+
+    private String safeSerialize(Object obj) {
+        try {
+            return new ObjectMapper().writeValueAsString(obj);
+        } catch (Exception e) {
+            logger.warn("Serialization failed: {}", e.getMessage());
+            return "{\"error\":\"Serialization failed\"}";
+        }
+    }
+}
