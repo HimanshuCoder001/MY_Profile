@@ -1,0 +1,70 @@
+spring:
+  profiles:
+    active: none
+  data:
+    mongodb:
+      uri: mongodb://app_ams:P4JYS7d9rrFH6G44@192.168.99.172:27017/db_ams?authSource=db_ams
+      database: db_ams
+  jpa:
+    properties:
+      hibernate:
+        format_sql: true
+        default_schema: common_utility
+  security:
+    user:
+      name: spice-money
+      password: spice123
+      roles: SPICE_USER
+
+server:
+  port: 9999
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: never
+    include-exception: false
+    whitelabel:
+      enabled: false
+#  servlet:
+#    context-path: /your-context-path
+
+# Custom properties
+enc:
+  salt: thejohncenaRocksinWorld
+  password: mynameisnitin
+
+logging:
+  level:
+    web: info
+    sql: info
+    org:
+      springframework:
+        transaction:
+          interceptor: info
+        boot:
+          autoconfigure: warn  # Reduce auto-configuration logging
+        web: info
+        security: debug  # Enable security debug logging
+    root: info
+    org.springframework.web: debug
+    com.credit.common: info
+    org.springframework.data.mongodb.core: debug
+
+ams:
+  host: 192.168.99.172
+  port: 27017
+  database: db_ams
+  user: app_ams
+  pass: P4JYS7d9rrFH6G44
+  authSource: db_ams
+  enabled: true
+  skip-logging: false
+  collection-name: marketplaceExternalcalls  # Matches Node.js collection
+
+http-client:
+  timeout-ms: 40000  # Default timeout matching Node.js
+  max-retries: 3     # Default number of retries
+  retry-factor: 2    # Exponential backoff factor
+  min-timeout: 100   # Minimum wait between retries
+  max-timeout: 5000  # Maximum wait between retries
+  retry-jitter: true # Randomize retry delays
