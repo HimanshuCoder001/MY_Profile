@@ -1,0 +1,82 @@
+package com.credit.common.ams.service;
+
+import com.credit.common.ams.config.AmsProperties;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.core.publisher.Mono;
+
+import java.util.HashMap;
+import java.util.Map;
+
+@Service
+@RequiredArgsConstructor
+public class ResponseHandlerService {
+    private final AmsLoggingService amsLoggingService;
+    private final AmsProperties amsProperties;
+    private final Logger logger = LoggerFactory.getLogger(ResponseHandlerService.class);
+
+    public <T> Mono<T> processResponse(T response, Map<String, Object> requestMeta,
+                                       Map<String, String> responseHeaders, int statusCode,
+                                       String clientId, String applicationNumber, String requestId,
+                                       boolean skipAmsLogging) {
+        Map<String, Object> responseMeta = new HashMap<>();
+        long endTime = System.currentTimeMillis();
+        responseMeta.put("dateTime", endTime);
+        responseMeta.put("statusCode", statusCode);
+        responseMeta.put("headers", responseHeaders);
+        responseMeta.put("body", safeSerialize(response));
+
+        if (!skipAmsLogging && amsProperties.isEnabled() && !amsProperties.isSkipLogging()) {
+            long durationMs = endTime - (long) requestMeta.getOrDefault("dateTime", endTime);
+            amsLoggingService.logRequestResponse(clientId, requestId, applicationNumber, "request-resp",
+                    requestMeta, responseMeta, durationMs);
+        } else {
+            logger.debug("AMS logging skipped for this request");
+        }
+
+        return Mono.just(response);
+    }
+
+    public <T> Mono<T> processError(Throwable error, Map<String, Object> requestMeta,
+                                    String clientId, String applicationNumber, String requestId,
+                                    boolean skipAmsLogging) {
+        Map<String, Object> responseMeta = new HashMap<>();
+        long endTime = System.currentTimeMillis();
+        responseMeta.put("dateTime", endTime);
+        String errorType = "request";
+        if (error instanceof WebClientResponseException ex) {
+            responseMeta.put("status", ex.getStatusCode().value());
+            responseMeta.put("body", ex.getResponseBodyAsString());
+            errorType = "response";
+            if (ex.getMessage().contains("timeout")) {
+                errorType = "timeout";
+                responseMeta.put("body", "ABORTED");
+            }
+        } else {
+            responseMeta.put("error", error.getMessage());
+        }
+
+        if (!skipAmsLogging && amsProperties.isEnabled() && !amsProperties.isSkipLogging()) {
+            long durationMs = endTime - (long) requestMeta.getOrDefault("dateTime", endTime);
+            amsLoggingService.logRequestResponse(clientId, requestId, applicationNumber, errorType,
+                    requestMeta, responseMeta, durationMs);
+        } else {
+            logger.debug("AMS logging skipped for this error");
+        }
+
+        return Mono.error(error);
+    }
+
+    private String safeSerialize(Object obj) {
+        try {
+            return new ObjectMapper().writeValueAsString(obj);
+        } catch (Exception e) {
+            logger.warn("Serialization failed: {}", e.getMessage());
+            return "{\"error\":\"Serialization failed\"}";
+        }
+    }
+}
